@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 // حماية السيرفر من الانهيار التام بسبب أي أخطاء مفاجئة في الاتصال
+=======
+// حماية السيرفر من الانهيار التام بسبب أي أخطاء مفاجئة
+>>>>>>> 3a48c35 (Enhance: Add isolated virtual wallets, active trade tracker and quiet scheduler)
 process.on("uncaughtException", (err) => {
   console.error("❌ Uncaught Exception:", err.message);
 });
@@ -9,22 +13,28 @@ process.on("unhandledRejection", (reason: any) => {
 
 import http from "http";
 import mongoose from "mongoose";
+import axios from "axios";
 import { Config } from "./core/Config";
 import { WSFeedManager } from "./core/WSFeedManager";
 import { RiskEngine } from "./core/RiskEngine";
 import { ExecutionStrategy } from "./core/ExecutionStrategy";
 import { TelegramNotifier } from "./core/TelegramNotifier";
-import { TradeSignalModel } from "./core/TradeSignalModel";
 import { ForexEngine } from "./core/ForexEngine";
 import { SolanaEngine } from "./core/SolanaEngine";
 import { QuantAnalyzer } from "./core/QuantAnalyzer";
+import { PositionManager } from "./core/PositionManager";
+import { TradePosition, VirtualWallet } from "./core/TradeSignalModel";
 import { RiskConfig } from "./core/types";
 
-console.log("⚡ [Apex Engine]: جاري تشغيل المحرك الموحد (Crypto + Forex + Web3)...");
+console.log("⚡ [Apex Engine]: جاري تشغيل المحرك الموحد الهادئ (Crypto + Forex + Web3)...");
 
 // 1. خادم الويب والداشبورد
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   if (req.url === "/dashboard") {
+    const cryptoW = await VirtualWallet.findOne({ system: "CRYPTO" }).lean();
+    const forexW = await VirtualWallet.findOne({ system: "FOREX" }).lean();
+    const solanaW = await VirtualWallet.findOne({ system: "SOLANA" }).lean();
+
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(`
       <!DOCTYPE html>
@@ -37,25 +47,29 @@ const server = http.createServer((req, res) => {
           .container { display: flex; gap: 20px; flex-wrap: wrap; }
           .card { background-color: #1e1e1e; padding: 20px; border-radius: 10px; flex: 1; min-width: 250px; border: 1px solid #333; }
           h2 { color: #00ffcc; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
-          .profit { color: #4caf50; font-weight: bold; }
-          .loss { color: #f44336; font-weight: bold; }
+          .val { font-size: 1.2rem; font-weight: bold; color: #4caf50; }
         </style>
       </head>
       <body>
-        <h1 style="text-align: center;">📊 Apex Hybrid Engine - لوحة التحكم الشاملة</h1>
+        <h1 style="text-align: center;">📊 Apex Hybrid Engine - لوحة التحكم المنظمة</h1>
         <div class="container">
           <div class="card">
-            <h2>🪙 نظام الكريبتو (Binance)</h2>
-            <p>الصفقات المفتوحة: <span id="crypto-open">0</span></p>
-            <p>الحالة: 🟢 مستقر</p>
+            <h2>🪙 نظام الكريبتو</h2>
+            <p>الرصيد: <span class="val">$${cryptoW?.balance.toFixed(2) || "10,000"}</span></p>
+            <p>الصفقات المفتوحة: ${cryptoW?.openPositionsCount || 0}</p>
+            <p>ربح: ${cryptoW?.totalWins || 0} | خسارة: ${cryptoW?.totalLosses || 0}</p>
           </div>
           <div class="card">
-            <h2>💱 نظام الفوركس (OANDA)</h2>
-            <p>الحالة: 🟡 جاري التقييم</p>
+            <h2>💱 نظام الفوركس</h2>
+            <p>الرصيد: <span class="val">$${forexW?.balance.toFixed(2) || "10,000"}</span></p>
+            <p>الصفقات المفتوحة: ${forexW?.openPositionsCount || 0}</p>
+            <p>ربح: ${forexW?.totalWins || 0} | خسارة: ${forexW?.totalLosses || 0}</p>
           </div>
           <div class="card">
-            <h2>🔗 المحافظ اللامركزية (Solana)</h2>
-            <p>الحالة: 🟢 مستقر (قراءة فقط)</p>
+            <h2>🔗 نظام سولانا</h2>
+            <p>الرصيد: <span class="val">$${solanaW?.balance.toFixed(2) || "10,000"}</span></p>
+            <p>الصفقات المفتوحة: ${solanaW?.openPositionsCount || 0}</p>
+            <p>ربح: ${solanaW?.totalWins || 0} | خسارة: ${solanaW?.totalLosses || 0}</p>
           </div>
         </div>
       </body>
@@ -69,32 +83,40 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ status: "running", timestamp: new Date().toISOString() }));
 });
 
+<<<<<<< HEAD
 // ضبط المنفذ والمضيف ليستقبل الطلبات الخارجية بدون نوم أو حظر
+=======
+>>>>>>> 3a48c35 (Enhance: Add isolated virtual wallets, active trade tracker and quiet scheduler)
 const PORT = Number(Config.port) || 10000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🌐 [Render Web]: السيرفر يعمل بنجاح على 0.0.0.0:${PORT}`);
 });
 
-// 2. الاتصال بقاعدة البيانات
-if (Config.mongoUri) {
-  mongoose.connect(Config.mongoUri)
-    .then(() => console.log("🗄️ [MongoDB]: تم الاتصال بنجاح"))
-    .catch((err) => console.warn("⚠️ [MongoDB]: خطأ:", err.message));
-}
-
-// 3. تهيئة المحركات والمخاطر والإشعارات
+// 2. تهيئة المكونات الأساسية
 const riskConfig: RiskConfig = { maxDailyDrawdownPercent: 2.0, maxLatencyMs: 250, forexFlushHourUTC: 20, forexFlushMinuteUTC: 15, forexResumeHourUTC: 22 };
 const riskEngine = new RiskEngine(riskConfig);
 const notifier = new TelegramNotifier(Config.telegram.token, Config.telegram.chatId, Config.botActive);
+const positionManager = new PositionManager(notifier);
 const strategy = new ExecutionStrategy(notifier);
 const quantAnalyzer = new QuantAnalyzer();
 
-// تشغيل الأنظمة الجانبية
+// 3. الاتصال بقاعدة البيانات وتهيئة المحافظ واسترجاع الصفقات
+if (Config.mongoUri) {
+  mongoose.connect(Config.mongoUri)
+    .then(async () => {
+      console.log("🗄️ [MongoDB]: تم الاتصال بنجاح");
+      await positionManager.initializeSystems();
+    })
+    .catch((err) => console.warn("⚠️ [MongoDB]: خطأ:", err.message));
+}
+
+// 4. تشغيل المنظومات الفرعية
 const forex = new ForexEngine(notifier);
 forex.start(5);
 const solana = new SolanaEngine();
 solana.initializeWallet();
 
+<<<<<<< HEAD
 // إرسال إشعار تليجرام عند بدء التشغيل بنجاح
 notifier.sendNotification("🚀 *[Apex Engine]*: تم تشغيل المحرك الموحد بنجاح على Render وجاهز لمتابعة الأسواق!").catch(() => {});
 
@@ -120,11 +142,41 @@ function simulateTradeClose(system: string, symbol: string, action: string, entr
     }
   }, 60000); 
 }
+=======
+notifier.sendNotification("🚀 *[Apex Engine]*: انطلاق المنظومة بهدوء وسلاسة (محافظ افتراضية + تتبع تلقائي للصفقات)").catch(() => {});
+>>>>>>> 3a48c35 (Enhance: Add isolated virtual wallets, active trade tracker and quiet scheduler)
 
-// 5. محرك الكريبتو وتدفق البيانات الحية
+// 5. محرك مراقبة الصفقات المفتوحة وجلب الأسعار الحية (كل دقيقة)
+setInterval(async () => {
+  try {
+    const openTrades = await TradePosition.find({ status: "OPEN" });
+    if (openTrades.length === 0) return;
+
+    // جلب أسعار الكريبتو الحالية من بينانس
+    const symbols = Array.from(new Set(openTrades.filter(t => t.system === "CRYPTO").map(t => t.symbol)));
+    for (const sym of symbols) {
+      try {
+        const res = await axios.get(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${sym}`, { timeout: 4000 });
+        const currentPrice = parseFloat(res.data.price);
+        
+        const matchingTrades = openTrades.filter(t => t.symbol === sym);
+        for (const trade of matchingTrades) {
+          await positionManager.checkPosition(trade, currentPrice);
+        }
+      } catch (err: any) {
+        // تجاهل أخطاء التايم آوت بهدوء
+      }
+    }
+  } catch (e: any) {
+    console.error("⚠️ خطأ دورة مراقبة الصفقات:", e.message);
+  }
+}, 60000);
+
+// 6. تدفق الكريبتو وفلتر السيولة الهادئ
 let recentBuyVolume = 0;
 let recentSellVolume = 0;
 let tradeCounter = 0;
+let lastAlertTime = 0;
 
 const wsStreamUrl = Config.useTestnet
   ? "wss://fstream.binancefuture.com/ws/btcusdt@trade"
@@ -146,6 +198,7 @@ btcFeed.on("message", async (msg) => {
       
       tradeCounter++;
 
+<<<<<<< HEAD
       if (tradeCounter >= 100) {
         const ofi = quantAnalyzer.calculateOFI(recentBuyVolume, recentSellVolume);
         
@@ -153,6 +206,17 @@ btcFeed.on("message", async (msg) => {
           await notifier.sendNotification(`🧠 *تنبيه سيولة (صيد الحيتان)*\n• ضغط شرائي قوي مخفي (تجميع)\n• نسبة OFI: +${(ofi*100).toFixed(1)}%`);
         } else if (ofi < -0.4) {
           await notifier.sendNotification(`🧠 *تنبيه سيولة (صيد الحيتان)*\n• ضغط بيعي قوي (تصريف)\n• نسبة OFI: ${(ofi*100).toFixed(1)}%`);
+=======
+      // فحص تراكم السيولة بدون إزعاج (بحد أقصى مرة كل 30 دقيقة لو كان حاداً جداً)
+      if (tradeCounter >= 300) {
+        const ofi = quantAnalyzer.calculateOFI(recentBuyVolume, recentSellVolume);
+        const now = Date.now();
+        
+        if (Math.abs(ofi) > 0.65 && (now - lastAlertTime > 1800000)) {
+          const dir = ofi > 0 ? "تجميع شرائي قوي 🟢" : "تصريف بيعي قوي 🔴";
+          await notifier.sendNotification(`🐋 *رصد حركة سيولة مؤسسية (BTC)*\n• التوصيف: ${dir}\n• شدة التدفق: ${(Math.abs(ofi) * 100).toFixed(1)}%`);
+          lastAlertTime = now;
+>>>>>>> 3a48c35 (Enhance: Add isolated virtual wallets, active trade tracker and quiet scheduler)
         }
 
         recentBuyVolume = 0;
@@ -167,9 +231,10 @@ btcFeed.on("message", async (msg) => {
   }
 });
 
-// 6. استلام إشارات الدخول وفتح الصفقات
+// 7. فتح الصفقات المؤكدة فقط عبر مدير المحافظ
 strategy.on("signal", async (signal) => {
   try {
+<<<<<<< HEAD
     let systemName = "كريبتو 🪙";
     if (signal.symbol.includes("SOL")) systemName = "سولانا 🔗";
     else if (!signal.symbol.includes("BTC") && !signal.symbol.includes("ETH")) systemName = "فوركس 💱";
@@ -198,6 +263,29 @@ strategy.on("signal", async (signal) => {
     }
 
     simulateTradeClose(systemName, signal.symbol, signal.action, signal.price);
+=======
+    let systemType: "CRYPTO" | "FOREX" | "SOLANA" = "CRYPTO";
+    if (signal.symbol.includes("SOL")) systemType = "SOLANA";
+    else if (!signal.symbol.includes("BTC") && !signal.symbol.includes("ETH")) systemType = "FOREX";
+
+    if (!riskEngine.canTrade()) return;
+
+    // حساب الوقف والهدف بنسبة واقعية (مثلاً وقف 1% وهدف 2%)
+    const isBuy = signal.action === "BUY";
+    const sl = isBuy ? signal.price * 0.99 : signal.price * 1.01;
+    const tp = isBuy ? signal.price * 1.02 : signal.price * 0.98;
+
+    await positionManager.openPosition(
+      systemType,
+      signal.symbol,
+      signal.action as "BUY" | "SELL",
+      signal.price,
+      parseFloat(sl.toFixed(4)),
+      parseFloat(tp.toFixed(4)),
+      200, // هامش 200$ لكل صفقة
+      "إشارة زخم وسيولة مؤكدة"
+    );
+>>>>>>> 3a48c35 (Enhance: Add isolated virtual wallets, active trade tracker and quiet scheduler)
   } catch (err: any) {
     console.error("⚠️ خطأ في تنفيذ الإشارة:", err.message);
   }
