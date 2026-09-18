@@ -14,6 +14,17 @@ export class TelegramNotifier {
     }
   }
 
+  // الدالة الجديدة لإرسال النصوص العامة ورسالة بدء التشغيل
+  public async sendNotification(message: string): Promise<void> {
+    if (!this.isActive || !this.bot || !this.chatId) return;
+
+    try {
+      await this.bot.telegram.sendMessage(this.chatId, message, { parse_mode: "Markdown" });
+    } catch (err) {
+      console.error("⚠️ خطأ أثناء إرسال إشعار التليجرام:", err);
+    }
+  }
+
   public async sendSignal(signal: TradeSignal): Promise<void> {
     if (!this.isActive || !this.bot || !this.chatId) return;
 
