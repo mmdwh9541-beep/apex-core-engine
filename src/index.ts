@@ -7,14 +7,14 @@ import { ExecutionStrategy } from "./core/ExecutionStrategy";
 import { TelegramNotifier } from "./core/TelegramNotifier";
 import { TradeSignalModel } from "./core/TradeSignalModel";
 import { ForexEngine } from "./core/ForexEngine";
-import { SolanaEngine } from "./core/SolanaEngine"; // <-- الاستدعاء الجديد لمحرك سولانا
+import { SolanaEngine } from "./core/SolanaEngine";
+import { QuantAnalyzer } from "./core/QuantAnalyzer";
 import { RiskConfig } from "./core/types";
 
 console.log("⚡ [Apex Engine]: جاري تشغيل المحرك الموحد (Crypto + Forex + Web3)...");
 
-// خادم الويب والداشبورد
+// 1. خادم الويب والداشبورد
 const server = http.createServer((req, res) => {
-  // صفحة الداشبورد
   if (req.url === "/dashboard") {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(`
@@ -38,23 +38,15 @@ const server = http.createServer((req, res) => {
           <div class="card">
             <h2>🪙 نظام الكريبتو (Binance)</h2>
             <p>الصفقات المفتوحة: <span id="crypto-open">0</span></p>
-            <p>إجمالي الأرباح: <span class="profit">+$0.00</span></p>
-            <p>إجمالي الخسائر: <span class="loss">-$0.00</span></p>
             <p>الحالة: 🟢 مستقر</p>
           </div>
           <div class="card">
             <h2>💱 نظام الفوركس (OANDA)</h2>
-            <p>الصفقات المفتوحة: <span id="forex-open">0</span></p>
-            <p>إجمالي الأرباح: <span class="profit">+$0.00</span></p>
-            <p>إجمالي الخسائر: <span class="loss">-$0.00</span></p>
             <p>الحالة: 🟡 جاري التقييم</p>
           </div>
           <div class="card">
             <h2>🔗 المحافظ اللامركزية (Solana)</h2>
-            <p>العمليات النشطة: <span id="web3-open">0</span></p>
-            <p>إجمالي الأرباح: <span class="profit">+$0.00</span></p>
-            <p>إجمالي الخسائر: <span class="loss">-$0.00</span></p>
-            <p>الحالة: 🟢 مستقر</p>
+            <p>الحالة: 🟢 مستقر (قراءة فقط)</p>
           </div>
         </div>
       </body>
@@ -63,105 +55,134 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // الرابط الأساسي للحفاظ على نشاط Render
   res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(
-    JSON.stringify({
-      status: "running",
-      system: "Apex-Hybrid-Core",
-      dashboard: "/dashboard",
-      timestamp: new Date().toISOString(),
-    })
-  );
+  res.end(JSON.stringify({ status: "running", timestamp: new Date().toISOString() }));
 });
 
 server.listen(Config.port, () => {
   console.log(`🌐 [Render Web]: المنفذ النشط: ${Config.port}`);
-  console.log(`📊 [Dashboard]: لوحة التحكم متاحة على المسار /dashboard`);
 });
 
-// الاتصال بقاعدة البيانات
+// 2. الاتصال بقاعدة البيانات
 if (Config.mongoUri) {
-  mongoose
-    .connect(Config.mongoUri)
+  mongoose.connect(Config.mongoUri)
     .then(() => console.log("🗄️ [MongoDB]: تم الاتصال بنجاح"))
-    .catch((err) => console.warn("⚠️ [MongoDB]: تخطي الاتصال:", err.message));
+    .catch((err) => console.warn("⚠️ [MongoDB]: خطأ:", err.message));
 }
 
-// تهيئة الإشعارات والمخاطر
-const riskConfig: RiskConfig = {
-  maxDailyDrawdownPercent: 2.0,
-  maxLatencyMs: 250,
-  forexFlushHourUTC: 20,
-  forexFlushMinuteUTC: 15,
-  forexResumeHourUTC: 22,
-};
-
+// 3. تهيئة المحركات والمخاطر والإشعارات
+const riskConfig: RiskConfig = { maxDailyDrawdownPercent: 2.0, maxLatencyMs: 250, forexFlushHourUTC: 20, forexFlushMinuteUTC: 15, forexResumeHourUTC: 22 };
 const riskEngine = new RiskEngine(riskConfig);
 const notifier = new TelegramNotifier(Config.telegram.token, Config.telegram.chatId, Config.botActive);
 const strategy = new ExecutionStrategy(notifier);
+const quantAnalyzer = new QuantAnalyzer(); // العقل المدبر
 
-// تشغيل مراقب الفوركس
+// تشغيل الأنظمة الجانبية
 const forex = new ForexEngine(notifier);
 forex.start(5);
-
-// تشغيل محرك المحافظ اللامركزية (سولانا) - <-- الإضافة الجديدة
 const solana = new SolanaEngine();
 solana.initializeWallet();
 
-// تشغيل مراقب الكريبتو
+// 4. دالة لمحاكاة إغلاق الصفقات التجريبية وإرسال تقرير الأرباح للتلجرام
+function simulateTradeClose(system: string, symbol: string, action: string, entryPrice: number) {
+  // تغلق الصفقة بعد 60 ثانية لمحاكاة النتيجة
+  setTimeout(async () => {
+    // توليد نسبة ربح أو خسارة عشوائية بين -1% و +2% للتجربة
+    const pnlPercent = (Math.random() * 3) - 1; 
+    const exitPrice = action === "BUY" ? entryPrice * (1 + pnlPercent/100) : entryPrice * (1 - pnlPercent/100);
+    const isWin = pnlPercent >= 0;
+    
+    await notifier.sendNotification(
+      `🔔 *إغلاق صفقة (${system})*\n` +
+      `• الأصل: \`${symbol}\`\n` +
+      `• الاتجاه: *${action}*\n` +
+      `• الدخول: \`${entryPrice.toFixed(4)}\`\n` +
+      `• الخروج: \`${exitPrice.toFixed(4)}\`\n` +
+      `• النتيجة: ${isWin ? "✅ ربح" : "❌ خسارة"} *${pnlPercent.toFixed(2)}%*\n` +
+      `• التوقيت: ${new Date().toLocaleTimeString("ar-EG")}`
+    );
+  }, 60000); 
+}
+
+// 5. محرك الكريبتو وتدفق البيانات الحية
+let recentBuyVolume = 0;
+let recentSellVolume = 0;
+let tradeCounter = 0;
+
 const wsStreamUrl = Config.useTestnet
   ? "wss://fstream.binancefuture.com/ws/btcusdt@trade"
   : "wss://fstream.binance.com/ws/btcusdt@trade";
 
-const btcFeed = new WSFeedManager({
-  name: "Binance-Futures-BTC",
-  url: wsStreamUrl,
-});
+const btcFeed = new WSFeedManager({ name: "Binance-Futures-BTC", url: wsStreamUrl });
 
-btcFeed.on("connected", (data) => {
-  console.log(`🟢 [Binance WS]: متصل بنجاح (${data.venue})`);
-});
+btcFeed.on("connected", () => console.log(`🟢 [Binance WS]: متصل بنجاح`));
 
 btcFeed.on("message", async (msg) => {
   if (msg.e === "trade") {
     const price = parseFloat(msg.p);
     const qty = parseFloat(msg.q);
     const isBuyerMaker = msg.m;
+
+    // تجميع السيولة لصالح العقل المدبر
+    if (isBuyerMaker) recentSellVolume += qty;
+    else recentBuyVolume += qty;
+    
+    tradeCounter++;
+
+    // تحليل السيولة كل 100 صفقة
+    if (tradeCounter >= 100) {
+      const ofi = quantAnalyzer.calculateOFI(recentBuyVolume, recentSellVolume);
+      
+      // إرسال تنبيه تلجرام إذا كانت السيولة غير طبيعية (حيتان)
+      if (ofi > 0.4) {
+        await notifier.sendNotification(`🧠 *تنبيه سيولة (صيد الحيتان)*\n• ضغط شرائي قوي مخفي (تجميع)\n• نسبة OFI: +${(ofi*100).toFixed(1)}%`);
+      } else if (ofi < -0.4) {
+        await notifier.sendNotification(`🧠 *تنبيه سيولة (صيد الحيتان)*\n• ضغط بيعي قوي (تصريف)\n• نسبة OFI: ${(ofi*100).toFixed(1)}%`);
+      }
+
+      recentBuyVolume = 0;
+      recentSellVolume = 0;
+      tradeCounter = 0;
+    }
+
     strategy.onMarketTrade("BTCUSDT", price, qty, isBuyerMaker);
   }
 });
 
-// تنفيذ الصفقات التجريبية وتخزينها
+// 6. استلام إشارات الدخول وفتح الصفقات
 strategy.on("signal", async (signal) => {
-  console.log(`🎯 [صفقة تجريبية]: تم التقاط إشارة ${signal.action} على ${signal.symbol}`);
+  // تحديد وجهة الصفقة
+  let systemName = "كريبتو 🪙";
+  if (signal.symbol.includes("SOL")) systemName = "سولانا 🔗";
+  else if (!signal.symbol.includes("BTC") && !signal.symbol.includes("ETH")) systemName = "فوركس 💱";
 
   const isSafe = riskEngine.canTrade();
   if (!isSafe) {
-    console.warn("⚠️ [Risk Engine]: تم حظر فتح الصفقة بسبب قواطع المخاطر.");
+    await notifier.sendNotification(`⚠️ *حظر صفقة (${systemName})*\nتم منع فتح صفقة \`${signal.symbol}\` للحماية من المخاطر.`);
     return;
   }
 
+  // إشعار التلجرام بفتح الصفقة
   await notifier.sendNotification(
-    `🚀 *صفقة تجريبية جديدة (Paper Trade)*\n` +
+    `🚀 *فتح صفقة جديدة*\n` +
+    `• النظام: *${systemName}*\n` +
     `• الأصل: \`${signal.symbol}\`\n` +
-    `• النوع: *${signal.action}*\n` +
-    `• السعر: \`${signal.price}\`\n` +
+    `• الاتجاه: *${signal.action}*\n` +
+    `• سعر الدخول: \`${signal.price}\`\n` +
     `• التوقيت: ${new Date().toLocaleTimeString("ar-EG")}`
   );
 
+  // تخزين الصفقة في الداتابيز
   if (mongoose.connection.readyState === 1) {
     try {
-      await TradeSignalModel.create({
-        ...signal,
-        metadata: { mode: "PAPER_TRADING", status: "OPEN" }
-      });
+      await TradeSignalModel.create({ ...signal, metadata: { mode: "PAPER_TRADING", status: "OPEN", system: systemName } });
     } catch (e: any) {
       console.error("⚠️ فشل حفظ الصفقة:", e.message);
     }
   }
+
+  // تفعيل محاكاة الإغلاق ليأتيك الإشعار بالربح/الخسارة بعد دقيقة
+  simulateTradeClose(systemName, signal.symbol, signal.action, signal.price);
 });
 
-btcFeed.on("latency", (lat) => riskEngine.evaluateLatency(lat));
-btcFeed.on("disconnected", (info) => console.log(`🔌 [WS]: انقطع الاتصال`));
 btcFeed.connect();
