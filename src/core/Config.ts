@@ -22,23 +22,31 @@ export interface AppConfig {
   };
 }
 
+// دالة لتنظيف أي نصوص قادمة من متغيرات البيئة من المسافات وعلامات التنصيص
+const cleanEnv = (val?: string): string => {
+  if (!val) return "";
+  return val.trim().replace(/^["']|["']$/g, "").trim();
+};
+
+const rawMongo = cleanEnv(process.env.MONGODB_URI);
+
 export const Config: AppConfig = {
-  port: parseInt(process.env.PORT || "3000", 10),
-  botActive: process.env.BOT_ACTIVE ? process.env.BOT_ACTIVE.toLowerCase() === "true" : true,
-  useTestnet: process.env.USE_TESTNET ? process.env.USE_TESTNET.toLowerCase() === "true" : true,
+  port: parseInt(cleanEnv(process.env.PORT) || "3000", 10),
+  botActive: process.env.BOT_ACTIVE ? cleanEnv(process.env.BOT_ACTIVE).toLowerCase() === "true" : true,
+  useTestnet: process.env.USE_TESTNET ? cleanEnv(process.env.USE_TESTNET).toLowerCase() === "true" : true,
   telegram: {
-    token: process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "",
-    chatId: process.env.TELEGRAM_CHAT_ID || "",
+    token: cleanEnv(process.env.TELEGRAM_TOKEN) || cleanEnv(process.env.TELEGRAM_BOT_TOKEN) || "",
+    chatId: cleanEnv(process.env.TELEGRAM_CHAT_ID) || "",
   },
-  mongoUri: process.env.MONGODB_URI || "mongodb://localhost:27017/apex-engine",
+  mongoUri: rawMongo || "mongodb://localhost:27017/apex-engine",
   binance: {
-    apiKey: process.env.BINANCE_API_KEY || "",
-    apiSecret: process.env.BINANCE_API_SECRET || "",
+    apiKey: cleanEnv(process.env.BINANCE_API_KEY) || "",
+    apiSecret: cleanEnv(process.env.BINANCE_API_SECRET) || "",
   },
   forex: {
-    twelveDataApiKey: process.env.TWELVE_DATA_API_KEY || "",
+    twelveDataApiKey: cleanEnv(process.env.TWELVE_DATA_API_KEY) || "",
   },
   gemini: {
-    apiKey: process.env.GEMINI_API_KEY || "",
+    apiKey: cleanEnv(process.env.GEMINI_API_KEY) || "",
   },
 };
