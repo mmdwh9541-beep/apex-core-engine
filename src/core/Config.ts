@@ -20,6 +20,11 @@ export interface AppConfig {
   gemini: {
     apiKey: string;
   };
+  // الإضافة الجديدة الخاصة بسولانا
+  solana: {
+    rpcUrl: string;
+    mnemonic: string;
+  };
 }
 
 // دالة لتنظيف أي نصوص قادمة من متغيرات البيئة من المسافات وعلامات التنصيص
@@ -48,5 +53,10 @@ export const Config: AppConfig = {
   },
   gemini: {
     apiKey: cleanEnv(process.env.GEMINI_API_KEY) || "",
+  },
+  // المتغيرات الجديدة الخاصة بشبكة سولانا باستخدام دالة التنظيف الخاصة بك
+  solana: {
+    rpcUrl: cleanEnv(process.env.SOLANA_RPC_URL) || "https://api.mainnet-beta.solana.com",
+    mnemonic: cleanEnv(process.env.SOLANA_MNEMONIC) || "",
   },
 };

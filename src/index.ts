@@ -7,9 +7,10 @@ import { ExecutionStrategy } from "./core/ExecutionStrategy";
 import { TelegramNotifier } from "./core/TelegramNotifier";
 import { TradeSignalModel } from "./core/TradeSignalModel";
 import { ForexEngine } from "./core/ForexEngine";
+import { SolanaEngine } from "./core/SolanaEngine"; // <-- الاستدعاء الجديد لمحرك سولانا
 import { RiskConfig } from "./core/types";
 
-console.log("⚡ [Apex Engine]: جاري تشغيل المحرك الموحد (Crypto + Forex)...");
+console.log("⚡ [Apex Engine]: جاري تشغيل المحرك الموحد (Crypto + Forex + Web3)...");
 
 // خادم الويب والداشبورد
 const server = http.createServer((req, res) => {
@@ -103,6 +104,10 @@ const strategy = new ExecutionStrategy(notifier);
 // تشغيل مراقب الفوركس
 const forex = new ForexEngine(notifier);
 forex.start(5);
+
+// تشغيل محرك المحافظ اللامركزية (سولانا) - <-- الإضافة الجديدة
+const solana = new SolanaEngine();
+solana.initializeWallet();
 
 // تشغيل مراقب الكريبتو
 const wsStreamUrl = Config.useTestnet

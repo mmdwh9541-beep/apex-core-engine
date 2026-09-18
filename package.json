@@ -11,14 +11,18 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@solana/web3.js": "^1.99.0",
     "axios": "^1.20.0",
+    "bip39": "^3.1.0",
     "dotenv": "^17.4.2",
+    "ed25519-hd-key": "^2.0.0",
     "mongoose": "^9.10.1",
     "telegraf": "^4.16.3",
     "ts-node": "^10.9.2",
     "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@types/bip39": "^2.4.2",
     "@types/node": "^26.6.1",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.13",
